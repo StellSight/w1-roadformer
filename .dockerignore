@@ -1,0 +1,8 @@
+.venv
+outputs
+data
+**/__pycache__
+**/*.pyc
+.git
+w1-roadformer.tar
+*.tar

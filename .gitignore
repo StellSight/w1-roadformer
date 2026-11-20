@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.vscode
+logs/
+
+# 权重和训练产物超过 GitHub 单文件限制，留在本地
+outputs/
+weights/
+*.pth
+*.pt
+*.tar
