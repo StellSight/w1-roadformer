@@ -349,11 +349,12 @@ def load_encoder_weights(encoder: MiTB2Encoder, path: str | Path) -> tuple[int, 
         for key, value in cleaned.items()
         if key in current and current[key].shape == value.shape
     }
-    if not matched:
+    missing = [key for key in current if key not in matched]
+    if missing:
         sample = ", ".join(list(cleaned)[:6])
         raise RuntimeError(
-            "编码器权重没有一个键对上。请使用 SegFormer MiT-B2 预训练文件，"
-            f"键名应类似 patch_embed1.proj.weight。当前文件里的键例如：{sample}"
+            f"编码器只对上 {len(matched)}/{len(current)} 个参数，训练不会开始。"
+            f"未匹配示例：{', '.join(missing[:8])}。文件中的键例如：{sample}"
         )
-    encoder.load_state_dict(matched, strict=False)
+    encoder.load_state_dict(matched, strict=True)
     return len(matched), len(current)

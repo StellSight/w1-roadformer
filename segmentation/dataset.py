@@ -170,6 +170,8 @@ class SegmentationDataset(Dataset):
 
     @staticmethod
     def _augment(image: np.ndarray, mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """第一次提交用的增强：水平/垂直翻转、90 度旋转、亮度 ±10%。"""
+
         if random.random() < 0.5:
             image = np.flip(image, axis=1)
             mask = np.flip(mask, axis=1)
@@ -180,73 +182,11 @@ class SegmentationDataset(Dataset):
         if turns:
             image = np.rot90(image, turns)
             mask = np.rot90(mask, turns)
-        image, mask = SegmentationDataset._rescale(image, mask)
-        image = SegmentationDataset._photometric(image)
         image = np.ascontiguousarray(image)
-        image = SegmentationDataset._darken_road(image, mask)
-        return image, mask
-
-    @staticmethod
-    def _photometric(image: np.ndarray) -> np.ndarray:
-        """亮度、对比度、gamma 和小幅通道扰动。数值仍保持在 0 到 1。"""
-
-        image = image * np.float32(random.uniform(0.85, 1.15))
-        mean = image.mean(axis=(0, 1), keepdims=True)
-        image = (image - mean) * np.float32(random.uniform(0.85, 1.15)) + mean
-        image = np.clip(image, 0.0, 1.0)
-        image = image ** np.float32(random.uniform(0.85, 1.15))
+        mask = np.ascontiguousarray(mask)
         if random.random() < 0.5:
-            scale = np.array([random.uniform(0.92, 1.08) for _ in range(image.shape[-1])], dtype=np.float32)
-            image = image * scale
-        return np.clip(image, 0.0, 1.0)
-
-    @staticmethod
-    def _rescale(image: np.ndarray, mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """0.9 到 1.1 倍缩放后裁回原尺寸。掩膜用最近邻，避免出现 0、1 以外的值。"""
-
-        if random.random() > 0.5:
-            return image, mask
-        height, width = image.shape[:2]
-        factor = random.uniform(0.9, 1.1)
-        scaled_h = max(32, int(round(height * factor)))
-        scaled_w = max(32, int(round(width * factor)))
-        image_tensor = torch.from_numpy(np.ascontiguousarray(image)).permute(2, 0, 1).unsqueeze(0)
-        mask_tensor = torch.from_numpy(mask.astype(np.float32)).unsqueeze(0).unsqueeze(0)
-        image_tensor = F.interpolate(image_tensor, size=(scaled_h, scaled_w), mode="bilinear", align_corners=False)
-        mask_tensor = F.interpolate(mask_tensor, size=(scaled_h, scaled_w), mode="nearest")
-        image = image_tensor.squeeze(0).permute(1, 2, 0).numpy()
-        mask = mask_tensor.squeeze().numpy().astype(np.int64)
-        if scaled_h >= height and scaled_w >= width:
-            top = random.randint(0, scaled_h - height)
-            left = random.randint(0, scaled_w - width)
-            return image[top : top + height, left : left + width], mask[top : top + height, left : left + width]
-        canvas = np.zeros((height, width, image.shape[-1]), dtype=np.float32)
-        label = np.zeros((height, width), dtype=np.int64)
-        top = (height - scaled_h) // 2
-        left = (width - scaled_w) // 2
-        canvas[top : top + scaled_h, left : left + scaled_w] = image
-        label[top : top + scaled_h, left : left + scaled_w] = mask
-        return canvas, label
-
-    @staticmethod
-    def _darken_road(image: np.ndarray, mask: np.ndarray) -> np.ndarray:
-        """在道路附近随机压暗一块，模拟楼房阴影。标签不变。"""
-
-        if random.random() > 0.3:
-            return image
-        ys, xs = np.nonzero(mask == 1)
-        if ys.size < 20:
-            return image
-        pick = random.randrange(ys.size)
-        height = random.randint(40, 140)
-        width = random.randint(40, 140)
-        y0 = max(0, int(ys[pick]) - height // 2)
-        x0 = max(0, int(xs[pick]) - width // 2)
-        y1 = min(image.shape[0], y0 + height)
-        x1 = min(image.shape[1], x0 + width)
-        image[y0:y1, x0:x1] *= np.float32(random.uniform(0.35, 0.7))
-        np.clip(image, 0.0, 1.0, out=image)
-        return image
+            image = np.clip(image * np.float32(random.uniform(0.9, 1.1)), 0.0, 1.0)
+        return image, mask
 
 
 def create_dataloaders(
